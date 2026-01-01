@@ -40,12 +40,16 @@ class Distributor(Player):
         self.tickets_sold = 0
         self.revenue = 0
 
-    def allocate_tickets(self, tier, cost, prize_distribution, count):
+    def allocate_tickets(self, tier, cost, prize_distribution, count, creation_cost_per_ticket):
         """Allocate tickets for a specific tier with given prize distribution"""
         tickets = []
         for prize, num_tickets in prize_distribution.items():
             for _ in range(num_tickets):
                 tickets.append(ScratchTicket(tier, cost, prize))
+
+        # Charge the distributor for creating these tickets
+        total_creation_cost = len(tickets) * creation_cost_per_ticket
+        self.adjust_balance(-total_creation_cost)
 
         # Shuffle to randomize ticket order
         random.shuffle(tickets)
@@ -56,6 +60,8 @@ class Distributor(Player):
             self.tickets_tier2.extend(tickets)
         elif tier == 3:
             self.tickets_tier3.extend(tickets)
+
+        return len(tickets), total_creation_cost
 
     def get_ticket_inventory(self, tier):
         """Get available tickets for a tier"""
@@ -77,7 +83,10 @@ class Distributor(Player):
         ticket.scratched = True
         self.tickets_sold += 1
         self.revenue += cost
+        # Distributor receives the cost of the ticket
         self.adjust_balance(cost)
+        # Distributor pays out the winnings
+        self.adjust_balance(-ticket.prize)
         return ticket
 
     def __str__(self):
@@ -89,6 +98,9 @@ class LuckSimulator:
         self.players = []
         self.distributor = None
         self.current_player_index = 0
+
+        # Ticket creation cost (what distributor pays to make tickets)
+        self.ticket_creation_cost = 0.10  # $0.10 per ticket
 
         # Scratch card tiers configuration (easy to adjust)
         # Tier 1: Safe - High chance to break even, low reward
@@ -151,12 +163,14 @@ class LuckSimulator:
         # Distributor allocates tickets
         self.distributor_allocate_tickets()
 
-    def distributor_allocate_tickets(self):
+    def distributor_allocate_tickets(self, is_initial=True):
         """Allow distributor to allocate ticket prizes for each tier"""
         print(f"\n{'='*50}")
         print("DISTRIBUTOR TICKET ALLOCATION")
         print(f"{'='*50}")
         print(f"{self.distributor.name}, you will now allocate scratch tickets.")
+        print(f"Cost to create tickets: ${self.ticket_creation_cost:.2f} per ticket")
+        print(f"Current balance: ${self.distributor.balance:.2f}")
         print("Specify how many tickets of each prize amount you want to create.\n")
 
         # Tier 1 allocation
@@ -194,21 +208,29 @@ class LuckSimulator:
         tier3_allocation[500] = int(input("How many $500 prize tickets? "))
 
         # Create tickets
-        total_tier1 = sum(tier1_allocation.values())
-        total_tier2 = sum(tier2_allocation.values())
-        total_tier3 = sum(tier3_allocation.values())
+        count1, cost1 = self.distributor.allocate_tickets(1, self.tier1_cost, tier1_allocation,
+                                                           sum(tier1_allocation.values()), self.ticket_creation_cost)
+        count2, cost2 = self.distributor.allocate_tickets(2, self.tier2_cost, tier2_allocation,
+                                                           sum(tier2_allocation.values()), self.ticket_creation_cost)
+        count3, cost3 = self.distributor.allocate_tickets(3, self.tier3_cost, tier3_allocation,
+                                                           sum(tier3_allocation.values()), self.ticket_creation_cost)
 
-        self.distributor.allocate_tickets(1, self.tier1_cost, tier1_allocation, total_tier1)
-        self.distributor.allocate_tickets(2, self.tier2_cost, tier2_allocation, total_tier2)
-        self.distributor.allocate_tickets(3, self.tier3_cost, tier3_allocation, total_tier3)
+        total_cost = cost1 + cost2 + cost3
+        total_tickets = count1 + count2 + count3
 
         print(f"\n{'='*50}")
         print("TICKETS ALLOCATED!")
-        print(f"Tier 1 (LUCKY PENNY): {total_tier1} tickets")
-        print(f"Tier 2 (HIGH ROLLER): {total_tier2} tickets")
-        print(f"Tier 3 (YOLO SPECIAL): {total_tier3} tickets")
+        print(f"Tier 1 (LUCKY PENNY): {count1} tickets (Cost: ${cost1:.2f})")
+        print(f"Tier 2 (HIGH ROLLER): {count2} tickets (Cost: ${cost2:.2f})")
+        print(f"Tier 3 (YOLO SPECIAL): {count3} tickets (Cost: ${cost3:.2f})")
+        print(f"Total: {total_tickets} tickets for ${total_cost:.2f}")
+        print(f"New balance: ${self.distributor.balance:.2f}")
         print(f"{'='*50}")
-        input("\nPress Enter to start the game...")
+
+        if is_initial:
+            input("\nPress Enter to start the game...")
+        else:
+            input("\nPress Enter to continue...")
 
     def get_current_player(self):
         """Get the current player whose turn it is"""
@@ -366,13 +388,24 @@ class LuckSimulator:
         print(f"Balance: ${player.balance:.2f}")
         print(f"{'='*50}")
         print("\nWhat would you like to do?")
-        print("1. Play Scratch Card")
-        print("2. View Stats")
-        print("3. End Turn")
-        print("4. Quit Game")
-        print(f"{'-'*50}")
 
-        choice = input("Choose an option (1-4): ").strip()
+        if player == self.distributor:
+            # Distributor-specific menu
+            print("1. Create More Tickets (costs money)")
+            print("2. View Stats")
+            print("3. End Turn")
+            print("4. Quit Game")
+            print(f"{'-'*50}")
+            choice = input("Choose an option (1-4): ").strip()
+        else:
+            # Regular player menu
+            print("1. Play Scratch Card")
+            print("2. View Stats")
+            print("3. End Turn")
+            print("4. Quit Game")
+            print(f"{'-'*50}")
+            choice = input("Choose an option (1-4): ").strip()
+
         return choice
 
     def run(self):
@@ -386,13 +419,19 @@ class LuckSimulator:
         game_running = True
         while game_running:
             choice = self.show_menu()
+            current_player = self.get_current_player()
 
             if choice == '1':
-                self.play_scratch_card()
+                if current_player == self.distributor:
+                    # Distributor creates more tickets
+                    self.distributor_allocate_tickets(is_initial=False)
+                else:
+                    # Regular player plays scratch card
+                    self.play_scratch_card()
             elif choice == '2':
                 self.show_stats()
             elif choice == '3':
-                print(f"\n{self.get_current_player().name} ended their turn.")
+                print(f"\n{current_player.name} ended their turn.")
                 self.next_player()
                 input("Press Enter to continue...")
             elif choice == '4':
