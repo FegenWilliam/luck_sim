@@ -2,9 +2,9 @@ import random
 
 
 class Player:
-    def __init__(self, name):
+    def __init__(self, name, starting_balance=500):
         self.name = name
-        self.balance = 100  # Starting balance
+        self.balance = starting_balance
         self.games_played = 0
         self.total_won = 0
         self.total_spent = 0
@@ -21,9 +21,73 @@ class Player:
         return f"{self.name}: ${self.balance:.2f}"
 
 
+class ScratchTicket:
+    """Represents a single scratch ticket with a predetermined prize"""
+    def __init__(self, tier, cost, prize):
+        self.tier = tier
+        self.cost = cost
+        self.prize = prize
+        self.scratched = False
+
+
+class Distributor(Player):
+    """Distributor manages and sells scratch tickets to other players"""
+    def __init__(self, name):
+        super().__init__(name, starting_balance=50000)
+        self.tickets_tier1 = []
+        self.tickets_tier2 = []
+        self.tickets_tier3 = []
+        self.tickets_sold = 0
+        self.revenue = 0
+
+    def allocate_tickets(self, tier, cost, prize_distribution, count):
+        """Allocate tickets for a specific tier with given prize distribution"""
+        tickets = []
+        for prize, num_tickets in prize_distribution.items():
+            for _ in range(num_tickets):
+                tickets.append(ScratchTicket(tier, cost, prize))
+
+        # Shuffle to randomize ticket order
+        random.shuffle(tickets)
+
+        if tier == 1:
+            self.tickets_tier1.extend(tickets)
+        elif tier == 2:
+            self.tickets_tier2.extend(tickets)
+        elif tier == 3:
+            self.tickets_tier3.extend(tickets)
+
+    def get_ticket_inventory(self, tier):
+        """Get available tickets for a tier"""
+        if tier == 1:
+            return [t for t in self.tickets_tier1 if not t.scratched]
+        elif tier == 2:
+            return [t for t in self.tickets_tier2 if not t.scratched]
+        elif tier == 3:
+            return [t for t in self.tickets_tier3 if not t.scratched]
+        return []
+
+    def sell_ticket(self, tier, cost):
+        """Sell a ticket to a player and return it"""
+        available = self.get_ticket_inventory(tier)
+        if not available:
+            return None
+
+        ticket = available[0]
+        ticket.scratched = True
+        self.tickets_sold += 1
+        self.revenue += cost
+        self.adjust_balance(cost)
+        return ticket
+
+    def __str__(self):
+        return f"{self.name} (DISTRIBUTOR): ${self.balance:.2f}"
+
+
 class LuckSimulator:
     def __init__(self):
         self.players = []
+        self.distributor = None
         self.current_player_index = 0
 
         # Scratch card tiers configuration (easy to adjust)
@@ -59,17 +123,20 @@ class LuckSimulator:
         }
 
     def setup_players(self):
-        """Set up 1-4 players for the game"""
-        while True:
-            try:
-                num_players = int(input("\nHow many players? (1-4): "))
-                if 1 <= num_players <= 4:
-                    break
-                print("Please enter a number between 1 and 4.")
-            except ValueError:
-                print("Please enter a valid number.")
+        """Set up 4 players for the game (1 distributor + 3 regular players)"""
+        print("\nSetting up 4 players (1 distributor + 3 regular players)")
+        print("The distributor manages tickets and starts with $50,000")
+        print("Regular players start with $500\n")
 
-        for i in range(num_players):
+        # Setup distributor
+        name = input("Enter name for Distributor: ").strip()
+        if not name:
+            name = "Distributor"
+        self.distributor = Distributor(name)
+        self.players.append(self.distributor)
+
+        # Setup 3 regular players
+        for i in range(3):
             name = input(f"Enter name for Player {i+1}: ").strip()
             if not name:
                 name = f"Player {i+1}"
@@ -81,6 +148,68 @@ class LuckSimulator:
             print(f"  {player}")
         print(f"{'='*50}\n")
 
+        # Distributor allocates tickets
+        self.distributor_allocate_tickets()
+
+    def distributor_allocate_tickets(self):
+        """Allow distributor to allocate ticket prizes for each tier"""
+        print(f"\n{'='*50}")
+        print("DISTRIBUTOR TICKET ALLOCATION")
+        print(f"{'='*50}")
+        print(f"{self.distributor.name}, you will now allocate scratch tickets.")
+        print("Specify how many tickets of each prize amount you want to create.\n")
+
+        # Tier 1 allocation
+        print(f"\n{'-'*50}")
+        print(f"TIER 1: LUCKY PENNY (Cost: ${self.tier1_cost})")
+        print(f"{'-'*50}")
+        tier1_allocation = {}
+        tier1_allocation[0] = int(input("How many $0 prize tickets? "))
+        tier1_allocation[2] = int(input("How many $2 prize tickets? "))
+        tier1_allocation[3] = int(input("How many $3 prize tickets? "))
+        tier1_allocation[5] = int(input("How many $5 prize tickets? "))
+        tier1_allocation[10] = int(input("How many $10 prize tickets? "))
+
+        # Tier 2 allocation
+        print(f"\n{'-'*50}")
+        print(f"TIER 2: HIGH ROLLER (Cost: ${self.tier2_cost})")
+        print(f"{'-'*50}")
+        tier2_allocation = {}
+        tier2_allocation[0] = int(input("How many $0 prize tickets? "))
+        tier2_allocation[2] = int(input("How many $2 prize tickets? "))
+        tier2_allocation[5] = int(input("How many $5 prize tickets? "))
+        tier2_allocation[10] = int(input("How many $10 prize tickets? "))
+        tier2_allocation[25] = int(input("How many $25 prize tickets? "))
+        tier2_allocation[100] = int(input("How many $100 prize tickets? "))
+
+        # Tier 3 allocation
+        print(f"\n{'-'*50}")
+        print(f"TIER 3: YOLO SPECIAL (Cost: ${self.tier3_cost})")
+        print(f"{'-'*50}")
+        tier3_allocation = {}
+        tier3_allocation[0] = int(input("How many $0 prize tickets? "))
+        tier3_allocation[10] = int(input("How many $10 prize tickets? "))
+        tier3_allocation[50] = int(input("How many $50 prize tickets? "))
+        tier3_allocation[100] = int(input("How many $100 prize tickets? "))
+        tier3_allocation[500] = int(input("How many $500 prize tickets? "))
+
+        # Create tickets
+        total_tier1 = sum(tier1_allocation.values())
+        total_tier2 = sum(tier2_allocation.values())
+        total_tier3 = sum(tier3_allocation.values())
+
+        self.distributor.allocate_tickets(1, self.tier1_cost, tier1_allocation, total_tier1)
+        self.distributor.allocate_tickets(2, self.tier2_cost, tier2_allocation, total_tier2)
+        self.distributor.allocate_tickets(3, self.tier3_cost, tier3_allocation, total_tier3)
+
+        print(f"\n{'='*50}")
+        print("TICKETS ALLOCATED!")
+        print(f"Tier 1 (LUCKY PENNY): {total_tier1} tickets")
+        print(f"Tier 2 (HIGH ROLLER): {total_tier2} tickets")
+        print(f"Tier 3 (YOLO SPECIAL): {total_tier3} tickets")
+        print(f"{'='*50}")
+        input("\nPress Enter to start the game...")
+
     def get_current_player(self):
         """Get the current player whose turn it is"""
         return self.players[self.current_player_index]
@@ -90,33 +219,46 @@ class LuckSimulator:
         self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
     def play_scratch_card(self):
-        """Simulate a scratch card game"""
+        """Simulate a scratch card game - buy from distributor's inventory"""
         player = self.get_current_player()
+
+        # Distributor cannot buy their own tickets
+        if player == self.distributor:
+            print(f"\n{self.distributor.name}, you are the distributor and cannot buy tickets!")
+            print("You can view your sales stats instead.")
+            input("\nPress Enter to continue...")
+            return
 
         print(f"\n{'-'*50}")
         print(f"SCRATCH CARD TIERS")
         print(f"{player.name}'s balance: ${player.balance:.2f}")
         print(f"{'-'*50}")
+
+        # Show available inventory
+        tier1_available = len(self.distributor.get_ticket_inventory(1))
+        tier2_available = len(self.distributor.get_ticket_inventory(2))
+        tier3_available = len(self.distributor.get_ticket_inventory(3))
+
         print("\nChoose a tier:")
-        print(f"1. LUCKY PENNY     - ${self.tier1_cost} (High chance to break even)")
-        print(f"2. HIGH ROLLER     - ${self.tier2_cost} (Balanced risk/reward)")
-        print(f"3. YOLO SPECIAL    - ${self.tier3_cost} (High risk, high reward)")
+        print(f"1. LUCKY PENNY     - ${self.tier1_cost} ({tier1_available} available)")
+        print(f"2. HIGH ROLLER     - ${self.tier2_cost} ({tier2_available} available)")
+        print(f"3. YOLO SPECIAL    - ${self.tier3_cost} ({tier3_available} available)")
         print("4. Cancel")
         print(f"{'-'*50}")
 
         tier_choice = input("Choose tier (1-4): ").strip()
 
         if tier_choice == '1':
+            tier = 1
             cost = self.tier1_cost
-            prizes = self.tier1_prizes
             tier_name = "LUCKY PENNY"
         elif tier_choice == '2':
+            tier = 2
             cost = self.tier2_cost
-            prizes = self.tier2_prizes
             tier_name = "HIGH ROLLER"
         elif tier_choice == '3':
+            tier = 3
             cost = self.tier3_cost
-            prizes = self.tier3_prizes
             tier_name = "YOLO SPECIAL"
         elif tier_choice == '4':
             print("Cancelled.")
@@ -124,6 +266,12 @@ class LuckSimulator:
             return
         else:
             print("Invalid choice.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Check if tickets are available
+        if len(self.distributor.get_ticket_inventory(tier)) == 0:
+            print(f"\nSorry, no {tier_name} tickets available!")
             input("\nPress Enter to continue...")
             return
 
@@ -139,21 +287,21 @@ class LuckSimulator:
             input("\nPress Enter to continue...")
             return
 
-        # Deduct cost
+        # Deduct cost from player
         player.adjust_balance(-cost)
 
-        # Determine winnings
-        rand = random.random()
-        cumulative_prob = 0
-        winnings = 0
+        # Buy ticket from distributor
+        ticket = self.distributor.sell_ticket(tier, cost)
 
-        for prize, probability in prizes.items():
-            cumulative_prob += probability
-            if rand < cumulative_prob:
-                winnings = prize
-                break
+        if ticket is None:
+            print("Error: Ticket unavailable!")
+            player.adjust_balance(cost)  # Refund
+            input("\nPress Enter to continue...")
+            return
 
-        # Award winnings
+        winnings = ticket.prize
+
+        # Award winnings to player
         player.adjust_balance(winnings)
         player.record_game(cost, winnings)
 
@@ -162,15 +310,16 @@ class LuckSimulator:
         print("." * 20)
 
         if winnings == 0:
-            print("💔 Better luck next time! You won $0")
+            print("Better luck next time! You won $0")
         elif winnings < cost:
-            print(f"🎫 You won ${winnings}! (Net: -${cost - winnings})")
+            print(f"You won ${winnings}! (Net: -${cost - winnings})")
         elif winnings == cost:
-            print(f"🎫 You won ${winnings}! (Break even!)")
+            print(f"You won ${winnings}! (Break even!)")
         else:
-            print(f"🎉 WINNER! You won ${winnings}! (Net: +${winnings - cost})")
+            print(f"WINNER! You won ${winnings}! (Net: +${winnings - cost})")
 
-        print(f"\nNew balance: ${player.balance:.2f}")
+        print(f"\nYour new balance: ${player.balance:.2f}")
+        print(f"{self.distributor.name}'s new balance: ${self.distributor.balance:.2f}")
         input("\nPress Enter to continue...")
 
     def show_stats(self):
@@ -180,14 +329,30 @@ class LuckSimulator:
         print(f"{'='*50}")
 
         for player in self.players:
-            print(f"\n{player.name}:")
-            print(f"  Balance: ${player.balance:.2f}")
-            print(f"  Games Played: {player.games_played}")
-            print(f"  Total Spent: ${player.total_spent:.2f}")
-            print(f"  Total Won: ${player.total_won:.2f}")
-            if player.total_spent > 0:
-                roi = ((player.total_won - player.total_spent) / player.total_spent) * 100
-                print(f"  ROI: {roi:.1f}%")
+            if player == self.distributor:
+                print(f"\n{player.name} (DISTRIBUTOR):")
+                print(f"  Balance: ${player.balance:.2f}")
+                print(f"  Tickets Sold: {self.distributor.tickets_sold}")
+                print(f"  Revenue: ${self.distributor.revenue:.2f}")
+                print(f"  Profit: ${player.balance - 50000:.2f}")
+
+                # Show remaining inventory
+                tier1_remaining = len(self.distributor.get_ticket_inventory(1))
+                tier2_remaining = len(self.distributor.get_ticket_inventory(2))
+                tier3_remaining = len(self.distributor.get_ticket_inventory(3))
+                print(f"  Remaining Inventory:")
+                print(f"    Tier 1: {tier1_remaining}")
+                print(f"    Tier 2: {tier2_remaining}")
+                print(f"    Tier 3: {tier3_remaining}")
+            else:
+                print(f"\n{player.name}:")
+                print(f"  Balance: ${player.balance:.2f}")
+                print(f"  Games Played: {player.games_played}")
+                print(f"  Total Spent: ${player.total_spent:.2f}")
+                print(f"  Total Won: ${player.total_won:.2f}")
+                if player.total_spent > 0:
+                    roi = ((player.total_won - player.total_spent) / player.total_spent) * 100
+                    print(f"  ROI: {roi:.1f}%")
 
         print(f"\n{'='*50}")
         input("\nPress Enter to continue...")
