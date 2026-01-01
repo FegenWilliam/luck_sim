@@ -98,9 +98,9 @@ class LuckSimulator:
         print(f"{player.name}'s balance: ${player.balance:.2f}")
         print(f"{'-'*50}")
         print("\nChoose a tier:")
-        print(f"1. SAFE   - ${self.tier1_cost} (High chance to break even)")
-        print(f"2. MEDIUM - ${self.tier2_cost} (Balanced risk/reward)")
-        print(f"3. RISKY  - ${self.tier3_cost} (High risk, high reward)")
+        print(f"1. LUCKY PENNY     - ${self.tier1_cost} (High chance to break even)")
+        print(f"2. HIGH ROLLER     - ${self.tier2_cost} (Balanced risk/reward)")
+        print(f"3. YOLO SPECIAL    - ${self.tier3_cost} (High risk, high reward)")
         print("4. Cancel")
         print(f"{'-'*50}")
 
@@ -109,15 +109,15 @@ class LuckSimulator:
         if tier_choice == '1':
             cost = self.tier1_cost
             prizes = self.tier1_prizes
-            tier_name = "SAFE"
+            tier_name = "LUCKY PENNY"
         elif tier_choice == '2':
             cost = self.tier2_cost
             prizes = self.tier2_prizes
-            tier_name = "MEDIUM"
+            tier_name = "HIGH ROLLER"
         elif tier_choice == '3':
             cost = self.tier3_cost
             prizes = self.tier3_prizes
-            tier_name = "RISKY"
+            tier_name = "YOLO SPECIAL"
         elif tier_choice == '4':
             print("Cancelled.")
             input("\nPress Enter to continue...")
